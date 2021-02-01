@@ -1,24 +1,17 @@
 import requests
-import awoc
-from pycountry_convert import country_name_to_country_alpha2
 
 from chalicelib import utils
 from .settings import OWNER_ID
 
+def get_sensor_type(node, sensor_types):
+    node_sensor_type = node['sensor']['sensor_type']['name']
+    for sensor_type in sensor_types:
+        if node_sensor_type in sensor_type.keys():
+            return sensor_type[node_sensor_type]
 
-def get_country_code(country):
-  try:
-    return country_name_to_country_alpha2(country)
-  except:
-    return
-
-def get_african_countries_codes():
-  countries = awoc.AWOC().get_countries_list_of('Africa')
-  return [get_country_code(country).upper() for country in countries if get_country_code(country)]
-
-african_countries = get_african_countries_codes()
+african_countries = utils.get_african_countries_codes()
 sensors_africa_nodes = utils.get_sensors_africa_nodes()
-locations = utils.get_sensors_africa_locations()
+sensor_types = utils.get_sensors_africa_sensor_types()
 
 def run():
   for country in african_countries:
@@ -27,7 +20,7 @@ def run():
       nodes = response.json()
       if nodes:
           for node in nodes:
-              import pdb; pdb.set_trace()
+              locations = utils.get_sensors_africa_locations()
               if node['id'] not in [_node["node"]["uid"] for _node in sensors_africa_nodes if _node["node"]]:
                   lat_log = f"{round(float(node['location']['latitude']), 3)}, {round(float(node['location']['longitude']), 3)}"
                   location = [loc.get(lat_log) for loc in locations if loc.get(lat_log)]
@@ -71,5 +64,17 @@ def run():
               if not node_id:
                   # This should not happen
                   raise Exception("Missing Node ID")
-              
-              print(1)
+              else:
+                  sensor_type = get_sensor_type(node, sensor_types)
+                  if not sensor_type:
+                      # Create sensor-type
+                      sensor_type = utils.create_sensor_type(node['sensor']['sensor_type'])
+                  
+                  sensor_id = utils.get_sensor_id({"node": node_id, "sensor_type": sensor_type, "pin": node['sensor']['pin']})
+
+                  if not sensor_id:
+                    # Create sensor
+                    sensor_id = utils.create_sensor({"node": node_id, "sensor_type": sensor_type, "pin": node['sensor']['pin']})
+
+                  # Send sensor Data
+                  utils.send_sensor_data(node['id'], node)
