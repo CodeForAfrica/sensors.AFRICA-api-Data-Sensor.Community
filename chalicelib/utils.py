@@ -61,12 +61,21 @@ def create_location(location):
 
 def get_sensors_africa_nodes():
     response = requests.get(
-        f"{SENSORS_AFRICA_API}/v2/nodes/",
+        f"{SENSORS_AFRICA_API}/v1/node/",
         headers={"Authorization": f"Token {SENSORS_AFRICA_API_KEY}"},
     )
     if response.ok:
-        return response.json()
-    return []
+        nodes = response.json()['results']
+
+        while response.json()['next']:
+            response = requests.get(
+                f"{response.json()['next']}",
+                headers={"Authorization": f"Token {SENSORS_AFRICA_API_KEY}"},
+            )
+            nodes.extend(response.json()['results'])
+
+        return nodes
+    raise Exception(response.text)
 
 
 def create_node(node):
