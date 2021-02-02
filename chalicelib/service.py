@@ -10,9 +10,7 @@ def get_sensor_type(node, sensor_types):
             return sensor_type[node_sensor_type]
 
 african_countries = utils.get_african_countries_codes()
-sensors_africa_nodes = utils.get_sensors_africa_nodes()
-sensor_types = utils.get_sensors_africa_sensor_types()
-
+       
 def run():
   for country in african_countries:
       URL = f"https://data.sensor.community/airrohr/v1/filter/country={country}"
@@ -21,7 +19,9 @@ def run():
       if nodes:
           for node in nodes:
               locations = utils.get_sensors_africa_locations()
-              if node['id'] not in [_node["node"]["uid"] for _node in sensors_africa_nodes if _node["node"]]:
+              sensors_africa_nodes = utils.get_sensors_africa_nodes()
+              sensor_types = utils.get_sensors_africa_sensor_types()
+              if str(node['sensor']['id']) not in [_node["uid"] for _node in sensors_africa_nodes]:
                   lat_log = f"{round(float(node['location']['latitude']), 3)}, {round(float(node['location']['longitude']), 3)}"
                   location = [loc.get(lat_log) for loc in locations if loc.get(lat_log)]
                   if location:
@@ -46,7 +46,7 @@ def run():
                   # Create a Node
                   node_id = utils.create_node(
                       node={
-                          "uid": node['id'],
+                          "uid": node['sensor']['id'],
                           "owner": OWNER_ID,
                           "location": location,
                       }
@@ -54,9 +54,9 @@ def run():
               else:
                   # Node already exist
                   node_id = [
-                    _node["node"]["id"]
-                      for _node in nodes
-                      if _node["node"]["uid"] == str(node["id"])
+                    _node["id"]
+                      for _node in sensors_africa_nodes
+                      if _node["uid"] == str(node['sensor']["id"])
                   ]
                   if node_id:
                       node_id = node_id[0]
@@ -64,17 +64,18 @@ def run():
               if not node_id:
                   # This should not happen
                   raise Exception("Missing Node ID")
-              else:
-                  sensor_type = get_sensor_type(node, sensor_types)
-                  if not sensor_type:
-                      # Create sensor-type
-                      sensor_type = utils.create_sensor_type(node['sensor']['sensor_type'])
-                  
-                  sensor_id = utils.get_sensor_id({"node": node_id, "sensor_type": sensor_type, "pin": node['sensor']['pin']})
+    
+              sensor_type = get_sensor_type(node, sensor_types)
+              
+              if not sensor_type:
+                  # Create sensor-type
+                  sensor_type = utils.create_sensor_type(node['sensor']['sensor_type'])
+            
+              sensor_id = utils.get_sensor_id({"node": node_id, "sensor_type": sensor_type, "pin": node['sensor']['pin']})
+              
+              if not sensor_id:
+                # Create sensor
+                sensor_id = utils.create_sensor({"node": node_id, "sensor_type": sensor_type, "pin": node['sensor']['pin']})
 
-                  if not sensor_id:
-                    # Create sensor
-                    sensor_id = utils.create_sensor({"node": node_id, "sensor_type": sensor_type, "pin": node['sensor']['pin']})
-
-                  # Send sensor Data
-                  utils.send_sensor_data(node['id'], node)
+              # Send sensor Data
+              utils.send_sensor_data(node['sensor']["id"], node)
